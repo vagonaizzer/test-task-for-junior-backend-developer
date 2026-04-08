@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gorilla/mux"
 
@@ -31,6 +32,7 @@ func (h *TaskHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Title:       req.Title,
 		Description: req.Description,
 		Status:      req.Status,
+		Recurrence:  recurrenceToDomain(req.Recurrence),
 	})
 	if err != nil {
 		writeUsecaseError(w, err)
@@ -73,6 +75,7 @@ func (h *TaskHandler) Update(w http.ResponseWriter, r *http.Request) {
 		Title:       req.Title,
 		Description: req.Description,
 		Status:      req.Status,
+		Recurrence:  recurrenceToDomain(req.Recurrence),
 	})
 	if err != nil {
 		writeUsecaseError(w, err)
@@ -99,6 +102,35 @@ func (h *TaskHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 func (h *TaskHandler) List(w http.ResponseWriter, r *http.Request) {
 	tasks, err := h.usecase.List(r.Context())
+	if err != nil {
+		writeUsecaseError(w, err)
+		return
+	}
+
+	response := make([]taskDTO, 0, len(tasks))
+	for i := range tasks {
+		response = append(response, newTaskDTO(&tasks[i]))
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
+// ListByDate отдаёт периодические задачи, которые попадают на указаную дату.
+// Дата берётся из query-параметра "date" в формате YYYY-MM-DD.
+// Если параметр не передан — берём сегодняшний день по UTC.
+func (h *TaskHandler) ListByDate(w http.ResponseWriter, r *http.Request) {
+	date := time.Now().UTC()
+
+	if rawDate := r.URL.Query().Get("date"); rawDate != "" {
+		parsed, err := time.Parse("2006-01-02", rawDate)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, errors.New("invalid date format, expected YYYY-MM-DD"))
+			return
+		}
+		date = parsed
+	}
+
+	tasks, err := h.usecase.ListByDate(r.Context(), date)
 	if err != nil {
 		writeUsecaseError(w, err)
 		return

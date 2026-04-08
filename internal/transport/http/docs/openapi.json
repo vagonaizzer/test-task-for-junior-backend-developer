@@ -42,7 +42,7 @@
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/CreateTaskRequest" }
+              "schema": { "$ref": "#/components/schemas/TaskMutationRequest" }
             }
           }
         },
@@ -52,6 +52,36 @@
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/Task" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" }
+        }
+      }
+    },
+    "/api/v1/tasks/scheduled": {
+      "get": {
+        "tags": ["Tasks"],
+        "summary": "List recurring tasks applicable for a date",
+        "description": "Returns all tasks with recurrence settings that are applicable for the given date. If `date` is omitted, today's UTC date is used.",
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "description": "Target date in YYYY-MM-DD format. Defaults to today.",
+            "schema": { "type": "string", "format": "date", "example": "2026-04-08" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of recurring tasks applicable for the date",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Task" }
+                }
               }
             }
           },
@@ -98,7 +128,7 @@
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/UpdateTaskRequest" }
+              "schema": { "$ref": "#/components/schemas/TaskMutationRequest" }
             }
           }
         },
@@ -153,58 +183,78 @@
       }
     },
     "schemas": {
-      "CreateTaskRequest": {
+      "RecurrenceSettings": {
+        "type": "object",
+        "required": ["type"],
+        "description": "Defines the periodicity of a task. Only populate the fields relevant to the chosen type.",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["daily", "monthly", "specific_dates", "even_odd"],
+            "description": "Recurrence type:\n- `daily` — every N days (requires `interval`)\n- `monthly` — fixed day of month (requires `day_of_month`, 1–30)\n- `specific_dates` — only on listed dates (requires `dates`)\n- `even_odd` — even or odd days of month (requires `even_odd`)"
+          },
+          "interval": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "For `daily`: repeat every N days.",
+            "example": 2
+          },
+          "day_of_month": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 30,
+            "description": "For `monthly`: the fixed day of month (1–30).",
+            "example": 15
+          },
+          "dates": {
+            "type": "array",
+            "items": { "type": "string", "format": "date" },
+            "description": "For `specific_dates`: list of dates in YYYY-MM-DD format.",
+            "example": ["2026-04-10", "2026-04-25"]
+          },
+          "even_odd": {
+            "type": "string",
+            "enum": ["even", "odd"],
+            "description": "For `even_odd`: whether the task applies to even or odd days of the month.",
+            "example": "even"
+          }
+        }
+      },
+      "TaskMutationRequest": {
         "type": "object",
         "required": ["title"],
         "properties": {
           "title": {
             "type": "string",
-            "example": "Prepare release"
+            "example": "Patient round"
           },
           "description": {
             "type": "string",
-            "example": "Collect release notes and check migrations"
+            "example": "Daily check of ward patients"
           },
           "status": {
             "type": "string",
             "enum": ["new", "in_progress", "done"],
             "example": "new"
-          }
-        }
-      },
-      "UpdateTaskRequest": {
-        "type": "object",
-        "required": ["title", "status"],
-        "properties": {
-          "title": {
-            "type": "string",
-            "example": "Prepare release"
           },
-          "description": {
-            "type": "string",
-            "example": "Collect release notes and check migrations"
-          },
-          "status": {
-            "type": "string",
-            "enum": ["new", "in_progress", "done"],
-            "example": "in_progress"
-          }
+          "recurrence": { "$ref": "#/components/schemas/RecurrenceSettings" }
         }
       },
       "Task": {
         "type": "object",
         "properties": {
           "id": { "type": "integer", "format": "int64", "example": 1 },
-          "title": { "type": "string", "example": "Prepare release" },
+          "title": { "type": "string", "example": "Patient round" },
           "description": {
             "type": "string",
-            "example": "Collect release notes and check migrations"
+            "example": "Daily check of ward patients"
           },
           "status": {
             "type": "string",
             "enum": ["new", "in_progress", "done"],
             "example": "new"
           },
+          "recurrence": { "$ref": "#/components/schemas/RecurrenceSettings" },
           "created_at": {
             "type": "string",
             "format": "date-time",
